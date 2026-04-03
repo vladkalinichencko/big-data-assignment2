@@ -13,40 +13,43 @@ services:
     networks:
       - spark-cluster
     depends_on:
-      - cluster-slave-1
-      - cassandra-server
+      cluster-slave-1:
+        condition: service_started
+      cassandra-server:
+        condition: service_healthy
     hostname: cluster-master
     tty: true
     working_dir: /app
     # You can comment the entrypoint to run the script manually inside the container
-    entrypoint: 
+    entrypoint:
       - bash
       - /app/app.sh
-    
+
   cluster-slave-1:
     image: firasj/spark-docker-cluster
     container_name: cluster-slave-1
+    volumes:
+      - "./app:/app"
     networks:
       - spark-cluster
     hostname: cluster-slave-1
     tty: true
-  # cluster-slave-2:
-  #   image: firasj/spark-docker-cluster
-  #   container_name: cluster-slave-2
-  #   networks:
-  #     - spark-cluster
-  #   depends_on:
-  #     - cluster-slave-1
-  #   hostname: cluster-slave-2
-  #   tty: true
+
   cassandra-server:
-    image: cassandra
+    image: scylladb/scylla
     container_name: cassandra-server
     ports:
-      - "7000:7000"
+      - "7199:7000"
+      - "9042:9042"
     networks:
       - spark-cluster
-    
+    command: --smp 1 --memory 750M
+    healthcheck:
+      test: ["CMD-SHELL", "cqlsh cassandra-server -e 'SELECT release_version FROM system.local' 2>/dev/null || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 60s
 
 networks:
   spark-cluster:
